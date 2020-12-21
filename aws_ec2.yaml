@@ -1,0 +1,51 @@
+---
+
+- name: "Create an EC2 instance - Role"
+  hosts: localhost
+  roles:
+    - aws_vpc
+    - aws_sg
+  vars_files:
+    - ec2_new.vars
+  tasks:
+
+    - name: "Create a new EC2 key pair"
+      ec2_key:
+        name: "{{ key }}"
+        region: "{{ region }}"
+      register: ec2_key
+
+    - name: "Save private key"
+      copy:
+        content="{{ ec2_key.key.private_key }}" dest="./keys/{{ key }}.pem" mode=0600
+      when: ec2_key.changed
+
+    - name: Create bastion server
+      ec2:
+        key_name: "{{ key }}"
+        region: "{{ region }}"
+        instance_type: "{{ type }}"
+        image: "{{ ami }}"
+        vpc_subnet_id: "{{ subnet_result2.subnet.id }}"
+        group_id: "{{ security_group_results.group_id }}"
+        wait: yes
+        instance_tags:
+          Name: bastion
+        count: 1
+        assign_public_ip: yes
+      register: ec2_bastion 
+
+    - name: Create webserver server
+      ec2:
+        key_name: "{{ key }}"
+        region: "{{ region }}"
+        instance_type: "{{ type }}"
+        image: "{{ ami }}"
+        vpc_subnet_id: "{{ subnet_result4.subnet.id }}"
+        group_id: ["{{ webserver_sg_group_results.group_id }}", "{{ security_group_results.group_id }}" ]
+        wait: yes
+        instance_tags:
+          Name: Webserver
+        count: 1
+        assign_public_ip: yes
+      register: ec2_webserver 
